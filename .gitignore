@@ -6,3 +6,10 @@ test/
 *.wav
 *.ts
 !docs/*.mp4
+autopilot/config.json
+autopilot/state.json
+autopilot/tiktok_token.json
+autopilot/tiktok.env
+autopilot/autoclip.log
+autopilot/data/
+autopilot/launchd.*.log
