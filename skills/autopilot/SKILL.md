@@ -9,6 +9,8 @@ Scripts live in `${CLAUDE_PLUGIN_ROOT}/autopilot/` (`autoclip.py`, `clipper.py`,
 
 ## First-time setup
 
+0. ffmpeg must include libass to burn captions. On macOS Homebrew's plain `ffmpeg` doesn't: `brew install ffmpeg-full && brew link --overwrite ffmpeg-full`. Check with `ffmpeg -filters | grep ass`.
+
 1. Copy `config.example.json` to `config.json`. For each source, ask the user for the channel URL and **how they have
    permission** (the campaign link they joined, or "my own channel"). Leave `permission` empty if they have none. The
    loop then skips that channel. Never fill it in for them.
