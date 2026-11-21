@@ -325,7 +325,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
 # ----------------------------------------------------------------------------- render
 
-def render(src: Path, c: Candidate, ass: Path, out: Path, layout: str, has_audio: bool):
+def render(src: Path, c: Candidate, ass: Path, out: Path, layout: str, has_audio: bool,
+           watermark: str = "", wm_width: float = 0.5, wm_y: float = 0.25):
     dur = c.end - c.start
     ass_f = str(ass).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
     if layout == "crop":
@@ -335,8 +336,14 @@ def render(src: Path, c: Candidate, ass: Path, out: Path, layout: str, has_audio
               "[a]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=24:2,eq=brightness=-0.08[bg];"
               "[b]scale=1080:-2[fg];"
               f"[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1,ass='{ass_f}'[v]")
-    cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-           "-ss", f"{c.start:.2f}", "-t", f"{dur:.2f}", "-i", str(src),
+    inputs = ["-ss", f"{c.start:.2f}", "-t", f"{dur:.2f}", "-i", str(src)]
+    if watermark:  # campaign watermark: horizontally centred, large, never at an edge
+        inputs += ["-loop", "1", "-i", str(watermark)]
+        w = int(1080 * wm_width)
+        vf = (vf[:-3] + "[base];" +
+              f"[1:v]scale={w}:-2,format=rgba[wm];"
+              f"[base][wm]overlay=(W-w)/2:H*{wm_y}-h/2:shortest=1[v]")
+    cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", *inputs,
            "-filter_complex", vf, "-map", "[v]"]
     if has_audio:
         cmd += ["-map", "0:a:0", "-af", "loudnorm=I=-14:TP=-1.5:LRA=11", "-c:a", "aac", "-b:a", "160k", "-ar", "48000"]
@@ -424,7 +431,7 @@ def cmd_run(args):
         mp4 = out_dir / f"{name}.mp4"
         build_ass(words, c.start, c.end, c.hook, ass, credit=args.credit)
         log(f"rendering {mp4.name} ({c.end - c.start:.0f}s from {c.start:.0f}s)")
-        render(src, c, ass, mp4, args.layout, info["has_audio"])
+        render(src, c, ass, mp4, args.layout, info["has_audio"], args.watermark, args.wm_width, args.wm_y)
         manifest.append({
             "file": mp4.name, "source": src.name, "start": c.start, "end": c.end,
             "length_s": round(c.end - c.start, 1), "title": c.title, "hook": c.hook,
@@ -461,6 +468,9 @@ def main():
     r.add_argument("--picks", help="JSON {clips:[...]} in the ranking schema; skips the API call")
     r.add_argument("--candidates-only", action="store_true", help="stop after writing .work/candidates.json")
     r.add_argument("--credit", default="", help="e.g. '@streamer' - burned in and added to the caption")
+    r.add_argument("--watermark", default="", help="image burned in centred (clipping campaigns require it)")
+    r.add_argument("--wm-width", type=float, default=0.5, help="watermark width as a fraction of 1080")
+    r.add_argument("--wm-y", type=float, default=0.25, help="watermark centre height as a fraction of the frame")
     r.set_defaults(func=cmd_run)
     f = sub.add_parser("fetch", help="download a VOD you have permission to clip (needs yt-dlp)")
     f.add_argument("url")

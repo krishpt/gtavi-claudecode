@@ -104,6 +104,24 @@ def rank_with_claude_code(cands_path: Path, n: int, min_len: float, max_len: flo
 
 # ----------------------------------------------------------------------------- clip one VOD
 
+def watermark_for(source: dict) -> Path | None:
+    """Campaign watermark: local file (watermark) or downloaded once from watermark_url into watermarks/."""
+    if source.get("watermark"):
+        p = Path(source["watermark"]).expanduser()
+        return p if p.is_absolute() else HERE / p
+    url = source.get("watermark_url")
+    if not url:
+        return None
+    dest = HERE / "watermarks" / (source["name"] + Path(url.split("?")[0]).suffix)
+    if not dest.exists():
+        import urllib.request
+        dest.parent.mkdir(exist_ok=True)
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        dest.write_bytes(urllib.request.urlopen(req, timeout=60).read())
+        log(f"  downloaded watermark for {source['name']}")
+    return dest
+
+
 def clip_vod(src: Path, out_dir: Path, source: dict, cfg: dict) -> list[dict]:
     c = {**cfg["clipping"], **{k: source[k] for k in ("min_len", "max_len", "clips_per_vod") if k in source}}
     base = [sys.executable, str(HERE / "clipper.py"), "run", str(src), "--out", str(out_dir),
@@ -111,6 +129,9 @@ def clip_vod(src: Path, out_dir: Path, source: dict, cfg: dict) -> list[dict]:
             "--layout", c["layout"], "--whisper-model", c["whisper_model"]]
     if source.get("credit"):
         base += ["--credit", source["credit"]]
+    wm = watermark_for(source)
+    if wm:
+        base += ["--watermark", str(wm)]
 
     ranker = c["ranker"]
     extra_args: list[str] = []
