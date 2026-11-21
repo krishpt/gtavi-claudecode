@@ -26,9 +26,11 @@
     "layout": "blur",
     "whisper_model": "small",
     "ranker": "claude-code",
-    "check_last_n": 3,
+    "check_last_n": 2,
     "max_height": 1080,
-    "delete_vod_after": true
+    "delete_vod_after": true,
+    "title_must_match": "gta",
+    "max_hours": 4
   },
   "posting": {
     "mode": "draft",
