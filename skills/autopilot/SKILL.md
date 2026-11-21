@@ -17,10 +17,6 @@ Scripts live in `${CLAUDE_PLUGIN_ROOT}/autopilot/` (`autoclip.py`, `clipper.py`,
 2. TikTok: walk them through creating a developer app (Login Kit + Content Posting API, scopes `video.upload`,
    `video.publish`), set `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `TIKTOK_REDIRECT_URI`, then run
    `python tiktok.py auth`. Put the three variables in `autopilot/tiktok.env` (KEY=value lines) so the scheduled job sees them. Until TikTok audits the app, use `posting.mode: "draft"`.
-   **No-audit option:** `posting.mode: "browser"` posts through a real Chromium profile (`tiktok_browser.py`).
-   Setup: `.venv/bin/pip install playwright && .venv/bin/playwright install chromium`, then
-   `python tiktok_browser.py login` once and log in to the clipping account; set `posting.account` to its handle.
-   It refuses blocked/personal accounts and any account other than `posting.account`.
 3. Run `python autoclip.py once --dry-run` and show them the queued clips and captions.
 4. Schedule it: on macOS `bash autopilot/install_schedule.sh` (launchd, every 30 min; `--remove` to stop). Linux: cron. Windows: Task Scheduler.
    The launchd job runs without the Claude desktop app (it calls the `claude` CLI directly) and holds the Mac awake

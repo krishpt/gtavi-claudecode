@@ -219,13 +219,8 @@ def post_queue(state, cfg, dry_run=False):
             log(f"[dry-run] would post {item['file']}: {item['post_text']}")
             continue
         try:
-            if pc["mode"] == "browser":
-                import tiktok_browser
-                res = tiktok_browser.post_video(Path(item["file"]), item["post_text"],
-                                                expected=pc.get("account", ""))
-            else:
-                res = tiktok.post_video(Path(item["file"]), item["post_text"], mode=pc["mode"],
-                                        privacy=pc.get("privacy", "PUBLIC_TO_EVERYONE"))
+            res = tiktok.post_video(Path(item["file"]), item["post_text"], mode=pc["mode"],
+                                    privacy=pc.get("privacy", "PUBLIC_TO_EVERYONE"))
         except Exception as e:  # keep it queued and try next run
             log(f"post failed for {item['file']}: {e}")
             break
