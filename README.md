@@ -69,8 +69,9 @@ No income is promised. Your result depends on speed, picks and hooks, and the sc
 | `cheat-codes` | All reported GTA 6 cheat codes with unlock tasks and sources, turned into a 4-slide cheat carousel |
 | `playbook` | Your full daily routine and launch-day plan |
 | `learning-loop` | Scoreboard, one test per day, payouts from real numbers only |
+| `autopilot` | Hands-off loop on a schedule: checks the channels you have permission to clip, cuts new VODs (Claude Code picks the moments), and posts to TikTok up to a daily cap |
 
-Nothing is uploaded automatically. You approve every post.
+Nothing is uploaded automatically unless you turn on `autopilot`, which only clips channels you've recorded permission for and caps posts per day.
 
 ## Hard rules
 

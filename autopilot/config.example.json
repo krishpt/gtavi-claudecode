@@ -1,0 +1,44 @@
+{
+  "data_dir": "~/gta6-clips",
+  "sources": [
+    {
+      "name": "example_streamer",
+      "url": "https://www.twitch.tv/example_streamer/videos?filter=archives",
+      "permission": "Whop campaign: <link to the campaign you joined>",
+      "credit": "@example_streamer",
+      "notes": "Campaign rules: GTA VI only, credit in caption, 15-60s. Copy the campaign's own rules here.",
+      "min_len": 15,
+      "max_len": 60,
+      "required_hashtags": "#gta6",
+      "title_must_match": "gta"
+    },
+    {
+      "name": "me",
+      "url": "https://www.youtube.com/@yourchannel/streams",
+      "permission": "my own channel",
+      "credit": "",
+      "notes": "Own channel: clips over 60s so they count for TikTok Creator Rewards."
+    }
+  ],
+  "clipping": {
+    "clips_per_vod": 5,
+    "min_len": 62,
+    "max_len": 90,
+    "layout": "blur",
+    "whisper_model": "small",
+    "ranker": "claude-code",
+    "check_last_n": 2,
+    "max_height": 1080,
+    "delete_vod_after": true,
+    "title_must_match": "",
+    "max_hours": 4
+  },
+  "posting": {
+    "mode": "draft",
+    "privacy": "PUBLIC_TO_EVERYONE",
+    "max_posts_per_day": 4
+  },
+  "verification": {
+    "checker": true
+  }
+}
