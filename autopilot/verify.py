@@ -39,18 +39,19 @@ CHECKER_SCHEMA = {
     "additionalProperties": False,
 }
 
-CHECKER_PROMPT = """You are a strict pre-post reviewer for a GTA VI TikTok clipping page. You did not make this clip.
+CHECKER_PROMPT = """You are a strict pre-post reviewer for a TikTok clipping page. You did not make this clip.
 Read the image file {grid} (a 3x3 grid of frames sampled across the clip, left-to-right, top-to-bottom) and judge
 the clip and its post text against this checklist. Answer FAIL if any item fails.
 
-1. Frames show GTA VI gameplay or a streamer playing it (not a menu, loading screen, black screen or unrelated content).
+1. Frames show real stream content from the credited creator (gameplay, IRL, reactions), not a menu, loading screen,
+   black screen or a test pattern. Campaign rules for this source: {rules}
 2. The vertical frame is usable: the action is visible and the subject isn't cut off. The full 16:9 frame centered over a
    blurred copy of itself is an accepted layout, and so is a facecam stacked above gameplay.
 3. On-screen text (hook, captions) is readable. A campaign watermark in the middle of the frame is REQUIRED by the
    campaign and is fine; other third-party logos are not.
 4. No nudity, gore beyond normal game violence, slurs or personal info (doxxing) visible.
 5. Post text matches what the frames show and does not promise something the clip doesn't deliver.
-6. Post text has no leak, piracy, "play early", glitch or Rockstar-impersonation claims.
+6. Post text has no leak, piracy, "play early", glitch or impersonation claims.
 
 Post text:
 {caption}
@@ -98,11 +99,11 @@ def hashtags(text: str) -> list[str]:
     return re.findall(r"#\w+", text)
 
 
-def independent_check(grid: Path, caption: str) -> tuple[bool, str]:
+def independent_check(grid: Path, caption: str, rules: str = "") -> tuple[bool, str]:
     claude = shutil.which("claude")
     if not claude:
         return False, "claude CLI not found, checker could not run"
-    prompt = CHECKER_PROMPT.format(grid=grid, caption=caption)
+    prompt = CHECKER_PROMPT.format(grid=grid, caption=caption, rules=rules or "(none given)")
     r = run([claude, "-p", "--output-format", "json", "--allowedTools", "Read",
              "--add-dir", str(grid.parent), "--json-schema", json.dumps(CHECKER_SCHEMA)],
             input=prompt, timeout=600)
@@ -121,7 +122,8 @@ def independent_check(grid: Path, caption: str) -> tuple[bool, str]:
 
 
 def verify(clip: Path, caption: str, *, min_len: float, max_len: float, mention: str = "", tags: str = "",
-           permission: str = "", ass: Path | None = None, speech_words: int = 0, checker: bool = True) -> list[tuple[str, bool, str]]:
+           permission: str = "", ass: Path | None = None, speech_words: int = 0, checker: bool = True,
+           rules: str = "") -> list[tuple[str, bool, str]]:
     res: list[tuple[str, bool, str]] = []
     add = lambda n, ok, d="": res.append((n, bool(ok), d))
 
@@ -164,7 +166,7 @@ def verify(clip: Path, caption: str, *, min_len: float, max_len: float, mention:
 
     if checker and all(ok for _, ok, _ in res):  # only spend the checker on clips that pass the mechanical items
         grid = frame_grid(clip, dur, clip.with_suffix(".grid.jpg"))
-        ok, why = independent_check(grid, caption)
+        ok, why = independent_check(grid, caption, rules)
         add("8. independent checker", ok, why)
     return res
 
