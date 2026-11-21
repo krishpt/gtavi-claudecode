@@ -200,6 +200,25 @@ def gate(m: dict, out_dir: Path, source: dict, cfg: dict) -> tuple[bool, str, li
 
 # ----------------------------------------------------------------------------- posting
 
+def to_outbox(clip: Path, source: str, vod_id: str) -> str:
+    """Copy a verified clip into autopilot/outbox/ so an uploader limited to the repo folder can reach it."""
+    out = HERE / "outbox"
+    out.mkdir(exist_ok=True)
+    dest = out / f"{source}_{vod_id}_{clip.name}"
+    shutil.copy2(clip, dest)
+    return str(dest)
+
+
+def cmd_outbox(_):
+    """Backfill: copy every queued clip that has no outbox copy yet."""
+    s = load_json(STATE, {"seen": {}, "queue": [], "posted": []})
+    for q in s["queue"]:
+        if not q.get("outbox") or not Path(q["outbox"]).exists():
+            q["outbox"] = to_outbox(Path(q["file"]), q["source"], q["vod"])
+            print("copied", q["outbox"])
+    save_state(s)
+
+
 def posted_today(state) -> int:
     today = dt.date.today().isoformat()
     return sum(1 for p in state["posted"] if p["at"].startswith(today))
@@ -289,6 +308,7 @@ def cmd_once(args):
                          "permission": source["permission"],
                          "checks": [f"{'PASS' if o else 'FAIL'} {n} {d}".strip() for n, o, d in report]}
                 if ok:
+                    entry["outbox"] = to_outbox(Path(entry["file"]), name, vod["id"])
                     state["queue"].append(entry)
                     passed += 1
                 else:
@@ -350,7 +370,8 @@ def cmd_status(_):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name, fn in [("once", cmd_once), ("post", cmd_post), ("status", cmd_status), ("report", cmd_report)]:
+    for name, fn in [("once", cmd_once), ("post", cmd_post), ("status", cmd_status), ("report", cmd_report),
+                     ("outbox", cmd_outbox)]:
         p = sub.add_parser(name)
         p.add_argument("--dry-run", action="store_true")
         p.add_argument("--days", type=int, default=1)

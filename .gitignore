@@ -17,3 +17,4 @@ autopilot/.tiktok-profile/
 autopilot/browser_errors/
 autopilot/.autoclip.lock
 autopilot/watermarks/
+autopilot/outbox/
