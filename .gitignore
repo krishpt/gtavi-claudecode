@@ -18,3 +18,4 @@ autopilot/browser_errors/
 autopilot/.autoclip.lock
 autopilot/watermarks/
 autopilot/outbox/
+autopilot/outbox_server.err.log

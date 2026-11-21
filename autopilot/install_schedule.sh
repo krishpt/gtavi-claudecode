@@ -10,7 +10,7 @@ LABEL="com.gtavi.autopilot"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
-if [ "${1:-}" = "--remove" ]; then rm -f "$PLIST"; echo "removed"; exit 0; fi
+if [ "${1:-}" = "--remove" ]; then launchctl bootout "gui/$(id -u)/com.gtavi.outbox" 2>/dev/null || true; rm -f "$PLIST" "$HOME/Library/LaunchAgents/com.gtavi.outbox.plist"; echo "removed"; exit 0; fi
 
 mkdir -p "$HOME/Library/LaunchAgents"
 cat > "$PLIST" <<PL
@@ -32,4 +32,21 @@ cat > "$PLIST" <<PL
 </dict></plist>
 PL
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
+
+# keep the localhost outbox server running (for the web uploader)
+SLABEL="com.gtavi.outbox"
+SPLIST="$HOME/Library/LaunchAgents/$SLABEL.plist"
+launchctl bootout "gui/$(id -u)/$SLABEL" 2>/dev/null || true
+cat > "$SPLIST" <<PL
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>$SLABEL</string>
+  <key>ProgramArguments</key><array><string>$PY</string><string>$DIR/outbox_server.py</string></array>
+  <key>KeepAlive</key><true/>
+  <key>RunAtLoad</key><true/>
+  <key>StandardErrorPath</key><string>$DIR/outbox_server.err.log</string>
+</dict></plist>
+PL
+launchctl bootstrap "gui/$(id -u)" "$SPLIST"
 echo "installed: runs every 30 min. Logs: $DIR/autoclip.log"
