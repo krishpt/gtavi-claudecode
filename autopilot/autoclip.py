@@ -141,7 +141,7 @@ def clip_vod(src: Path, out_dir: Path, source: dict, cfg: dict) -> list[dict]:
         subprocess.run(base + ["--candidates-only"], check=True)
         picks = rank_with_claude_code(out_dir / ".work" / "candidates.json", c["clips_per_vod"],
                                       c["min_len"], c["max_len"], source.get("notes", ""))
-        if picks:
+        if picks and picks.get("clips"):  # an empty list from Claude falls back to the heuristic
             pf = out_dir / ".work" / "picks.json"
             pf.write_text(json.dumps(picks))
             extra_args = ["--picks", str(pf)]

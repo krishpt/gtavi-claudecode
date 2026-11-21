@@ -73,8 +73,12 @@ def transcribe(path: Path, model_size: str, cache: Path) -> list[dict]:
     log(f"transcribing with whisper '{model_size}' (first run downloads the model)")
     words = []
     try:
+        import numpy as np
         model = WhisperModel(model_size, device="auto", compute_type="auto")
-        segments, _ = model.transcribe(str(path), word_timestamps=True, vad_filter=True)
+        # decode with ffmpeg ourselves: faster-whisper's PyAV decoder breaks on av>=19 (metadata_errors removed)
+        pcm = subprocess.run(["ffmpeg", "-nostdin", "-loglevel", "error", "-i", str(path), "-vn", "-ac", "1",
+                              "-ar", "16000", "-f", "f32le", "-"], capture_output=True, check=True).stdout
+        segments, _ = model.transcribe(np.frombuffer(pcm, np.float32), word_timestamps=True, vad_filter=True)
         for seg in segments:
             for w in seg.words or []:
                 words.append({"start": round(w.start, 2), "end": round(w.end, 2), "word": w.word.strip()})
@@ -421,8 +425,8 @@ def cmd_run(args):
             log(f"Claude ranking unavailable ({e.__class__.__name__}: {e}); using heuristic ranking")
     if picks is None:
         picks = rank_heuristic(cands, args.clips)
-        for c in picks:  # heuristic windows are win long; trim to max_len around the start
-            c.end = round(min(c.end, c.start + args.max_len), 2)
+    for c in picks:  # heuristic windows (and some Claude picks) run long; trim to max_len from the start
+        c.end = round(min(c.end, c.start + args.max_len), 2)
 
     manifest = []
     for i, c in enumerate(picks, 1):
