@@ -3,7 +3,7 @@
 
 One-time setup:
   1. Create an app at https://developers.tiktok.com, add "Login Kit" and "Content Posting API",
-     request scopes video.upload and video.publish, set a redirect URI (e.g. https://localhost/callback).
+     request scopes user.info.profile, video.upload and video.publish, set a redirect URI (e.g. https://localhost/callback).
   2. export TIKTOK_CLIENT_KEY=...  TIKTOK_CLIENT_SECRET=...  TIKTOK_REDIRECT_URI=...
   3. python tiktok.py auth     (opens a login URL, paste back the URL you land on)
 
@@ -59,7 +59,7 @@ def _post(url, data=None, form=None, token=None):
 # ----------------------------------------------------------------------------- auth
 
 def auth_url(state: str) -> str:
-    q = {"client_key": _env("TIKTOK_CLIENT_KEY"), "scope": "user.info.basic,video.upload,video.publish",
+    q = {"client_key": _env("TIKTOK_CLIENT_KEY"), "scope": "user.info.basic,user.info.profile,video.upload,video.publish",
          "response_type": "code", "redirect_uri": _env("TIKTOK_REDIRECT_URI"), "state": state}
     return "https://www.tiktok.com/v2/auth/authorize/?" + urllib.parse.urlencode(q)
 
