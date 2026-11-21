@@ -46,7 +46,8 @@ the clip and its post text against this checklist. Answer FAIL if any item fails
 1. Frames show GTA VI gameplay or a streamer playing it (not a menu, loading screen, black screen or unrelated content).
 2. The vertical frame is usable: the action is visible and the subject isn't cut off. The full 16:9 frame centered over a
    blurred copy of itself is an accepted layout, and so is a facecam stacked above gameplay.
-3. On-screen text (hook, captions) is readable and not covering the action center.
+3. On-screen text (hook, captions) is readable. A campaign watermark in the middle of the frame is REQUIRED by the
+   campaign and is fine; other third-party logos are not.
 4. No nudity, gore beyond normal game violence, slurs or personal info (doxxing) visible.
 5. Post text matches what the frames show and does not promise something the clip doesn't deliver.
 6. Post text has no leak, piracy, "play early", glitch or Rockstar-impersonation claims.
