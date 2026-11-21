@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -60,9 +61,10 @@ def latest_vods(url: str, n: int) -> list[dict]:
              "duration": e.get("duration")} for e in entries if e.get("id")]
 
 
-def download(vod: dict, dest: Path, max_height: int) -> Path | None:
+def download(vod: dict, dest: Path, max_height: int, max_hours: float = 0) -> Path | None:
     dest.mkdir(parents=True, exist_ok=True)
-    r = subprocess.run(["yt-dlp", "-f", f"bv*[height<={max_height}]+ba/b[height<={max_height}]",
+    section = ["--download-sections", f"*0-{int(max_hours * 3600)}"] if max_hours else []
+    r = subprocess.run(["yt-dlp", "-f", f"bv*[height<={max_height}]+ba/b[height<={max_height}]", *section,
                         "--merge-output-format", "mp4", "--no-progress",
                         "-o", str(dest / "%(id)s.%(ext)s"), "--print", "after_move:filepath", vod["url"]],
                        capture_output=True, text=True)
@@ -235,8 +237,15 @@ def cmd_once(args):
             if dur and dur < cfg["clipping"]["min_len"] * 2:
                 state["seen"][key] = {"skipped": "too short"}
                 continue
+            title_re = source.get("title_must_match", cfg["clipping"].get("title_must_match", ""))
+            if title_re and not re.search(title_re, vod.get("title") or "", re.I):
+                state["seen"][key] = {"at": dt.datetime.now().isoformat(timespec="seconds"),
+                                      "skipped": f"title doesn't match {title_re!r}"}
+                log(f"  skip {vod['id']} {vod['title'][:50]!r}: not a GTA VOD")
+                continue
             log(f"  new VOD {vod['id']} {vod['title'][:60]!r}")
-            src = download(vod, data / "vods" / name, cfg["clipping"].get("max_height", 1080))
+            src = download(vod, data / "vods" / name, cfg["clipping"].get("max_height", 1080),
+                           source.get("max_hours", cfg["clipping"].get("max_hours", 0)))
             if not src:
                 continue
             out_dir = data / "clips" / name / vod["id"]
