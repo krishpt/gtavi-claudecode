@@ -120,7 +120,14 @@ def clip_vod(src: Path, out_dir: Path, source: dict, cfg: dict) -> list[dict]:
         subprocess.run(base + ["--candidates-only"], check=True)
         picks = rank_with_claude_code(out_dir / ".work" / "candidates.json", c["clips_per_vod"],
                                       c["min_len"], c["max_len"], source.get("notes", ""))
+        n_picks = len((picks or {}).get("clips") or [])
+        valid = n_picks and all(0 <= p.get("candidate_id", -1) < len(json.loads(
+            (out_dir / ".work" / "candidates.json").read_text())) for p in picks["clips"])
+        if picks is not None and not valid:
+            log(f"  Claude returned {n_picks} usable picks; falling back to heuristic ranking")
+            picks = None
         if picks:
+            log(f"  Claude picked {n_picks} clips")
             pf = out_dir / ".work" / "picks.json"
             pf.write_text(json.dumps(picks))
             extra_args = ["--picks", str(pf)]
@@ -130,8 +137,15 @@ def clip_vod(src: Path, out_dir: Path, source: dict, cfg: dict) -> list[dict]:
     elif ranker == "heuristic":
         extra_args = ["--no-claude"]
     # ranker == "api" -> clipper calls the Claude API itself (needs ANTHROPIC_API_KEY)
+    meta = out_dir / "metadata.json"
+    meta.unlink(missing_ok=True)  # never read a stale manifest from an earlier run
     subprocess.run(base + extra_args, check=True)
-    return json.loads((out_dir / "metadata.json").read_text())
+    clips = json.loads(meta.read_text()) if meta.exists() else []
+    if not clips and "--no-claude" not in extra_args:
+        log("  no clips from the ranked picks; retrying with heuristic ranking")
+        subprocess.run(base + ["--no-claude"], check=True)
+        clips = json.loads(meta.read_text()) if meta.exists() else []
+    return clips
 
 
 def gate(m: dict, out_dir: Path, source: dict, cfg: dict) -> tuple[bool, str, list]:
