@@ -92,6 +92,32 @@ def access_token() -> str:
         tok = new
     return tok["access_token"]
 
+# ----------------------------------------------------------------------------- account guard
+
+# Accounts the autopilot must never post to, e.g. a personal account. Extend via TIKTOK_BLOCKED_ACCOUNTS (comma list).
+BLOCKED = {"krishpt16"} | {a.strip().lstrip("@").lower() for a in os.environ.get("TIKTOK_BLOCKED_ACCOUNTS", "").split(",") if a.strip()}
+
+
+def account_username(token: str) -> str:
+    req = urllib.request.Request(f"{API}/user/info/?fields=open_id,username,display_name",
+                                 headers={"Authorization": f"Bearer {token}"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        data = json.loads(r.read()).get("data", {}).get("user", {})
+    return (data.get("username") or "").lower()
+
+
+def check_account(token: str):
+    """Refuse to post unless we can confirm the logged-in account is NOT a blocked (personal) one."""
+    try:
+        name = account_username(token)
+    except Exception as e:
+        raise RuntimeError(f"could not confirm which TikTok account is logged in ({e}); not posting") from None
+    if not name:
+        raise RuntimeError("TikTok did not return a username; not posting")
+    if name in BLOCKED:
+        TOKEN_FILE.unlink(missing_ok=True)
+        raise RuntimeError(f"@{name} is blocked (personal account). Token deleted, nothing posted.")
+
 # ----------------------------------------------------------------------------- upload
 
 def _source_info(size: int) -> dict:
@@ -120,6 +146,7 @@ def post_video(path: Path, caption: str, mode: str = "draft", privacy: str = "PU
                wait: bool = True) -> dict:
     """mode: 'draft' (lands in your TikTok inbox) or 'direct' (posts with the given privacy)."""
     token = access_token()
+    check_account(token)
     info = _source_info(path.stat().st_size)
     if mode == "direct":
         creator = _post(f"{API}/post/publish/creator_info/query/", token=token)["data"]
@@ -157,6 +184,10 @@ def main():
         if q.get("state", [""])[0] != state:
             sys.exit("state mismatch, try again")
         exchange_code(q["code"][0])
+        try:
+            check_account(access_token())
+        except RuntimeError as e:
+            sys.exit(str(e))
         print(f"saved token to {TOKEN_FILE}")
     elif len(sys.argv) >= 3 and sys.argv[1] == "post":
         mode = sys.argv[4] if len(sys.argv) > 4 else "draft"

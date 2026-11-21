@@ -41,5 +41,7 @@ mention), `notes` (fed to the ranker). Copy each campaign's own rules into these
 
 ## Rules
 
+- Never connect or post to Krish's personal TikTok (@krishpt16). Use a separate clipping account only. `tiktok.py` refuses blocked accounts and deletes their token.
+
 - Only clip channels with a recorded permission. No leaks, no pre-release footage, no reposts without edits.
 - Every clip gets a hook, captions and credit to the creator in the post text.
