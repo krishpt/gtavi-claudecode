@@ -269,6 +269,8 @@ def cmd_once(args):
         sys.exit("No config.json. Copy config.example.json to config.json and fill it in.")
     state = load_json(STATE, {"seen": {}, "queue": [], "posted": []})
     data = Path(cfg.get("data_dir") or HERE / "data").expanduser()
+    # post what's already verified first, so a long VOD below never delays the queue
+    post_queue(state, cfg, dry_run=args.dry_run)
 
     for source in cfg["sources"]:
         name = source["name"]
