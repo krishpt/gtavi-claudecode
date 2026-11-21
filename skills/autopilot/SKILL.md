@@ -19,6 +19,9 @@ Scripts live in `${CLAUDE_PLUGIN_ROOT}/autopilot/` (`autoclip.py`, `clipper.py`,
    `python tiktok.py auth`. Put the three variables in `autopilot/tiktok.env` (KEY=value lines) so the scheduled job sees them. Until TikTok audits the app, use `posting.mode: "draft"`.
 3. Run `python autoclip.py once --dry-run` and show them the queued clips and captions.
 4. Schedule it: on macOS `bash autopilot/install_schedule.sh` (launchd, every 30 min; `--remove` to stop). Linux: cron. Windows: Task Scheduler.
+   The launchd job runs without the Claude desktop app (it calls the `claude` CLI directly) and holds the Mac awake
+   with `caffeinate -i` while a run is in progress. Between runs the Mac must be on and not asleep: set System Settings →
+   Battery → Options → "Prevent automatic sleeping on power adapter when the display is off".
 
 To find new campaign creators, use `campaign-finder`. To find trending streams worth asking permission for, use `stream-finder` and `trend-radar`.
 

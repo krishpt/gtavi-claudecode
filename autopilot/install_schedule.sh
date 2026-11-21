@@ -20,7 +20,7 @@ cat > "$PLIST" <<PL
   <key>Label</key><string>$LABEL</string>
   <key>ProgramArguments</key><array>
     <string>/bin/bash</string><string>-lc</string>
-    <string>cd "$DIR" &amp;&amp; [ -f tiktok.env ] &amp;&amp; set -a &amp;&amp; . ./tiktok.env &amp;&amp; set +a; exec "$PY" autoclip.py once</string>
+    <string>cd "$DIR" &amp;&amp; [ -f tiktok.env ] &amp;&amp; set -a &amp;&amp; . ./tiktok.env &amp;&amp; set +a; exec /usr/bin/caffeinate -i "$PY" autoclip.py once</string>
   </array>
   <key>EnvironmentVariables</key><dict>
     <key>PATH</key><string>$ROOT/.venv/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$(dirname "$(command -v claude || echo /usr/local/bin/claude)")</string>
