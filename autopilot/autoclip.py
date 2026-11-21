@@ -184,8 +184,13 @@ def post_queue(state, cfg, dry_run=False):
             log(f"[dry-run] would post {item['file']}: {item['post_text']}")
             continue
         try:
-            res = tiktok.post_video(Path(item["file"]), item["post_text"], mode=pc["mode"],
-                                    privacy=pc.get("privacy", "PUBLIC_TO_EVERYONE"))
+            if pc["mode"] == "browser":
+                import tiktok_browser
+                res = tiktok_browser.post_video(Path(item["file"]), item["post_text"],
+                                                expected=pc.get("account", ""))
+            else:
+                res = tiktok.post_video(Path(item["file"]), item["post_text"], mode=pc["mode"],
+                                        privacy=pc.get("privacy", "PUBLIC_TO_EVERYONE"))
         except Exception as e:  # keep it queued and try next run
             log(f"post failed for {item['file']}: {e}")
             break
@@ -196,7 +201,20 @@ def post_queue(state, cfg, dry_run=False):
 
 # ----------------------------------------------------------------------------- main loop
 
+def _lock():
+    """One run at a time (a manual run and the scheduled job must not process the same VOD twice)."""
+    import fcntl
+    f = open(HERE / ".autoclip.lock", "w")
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        log("another run is in progress; exiting")
+        sys.exit(0)
+    return f
+
+
 def cmd_once(args):
+    _lock_handle = _lock()  # noqa: F841 (held until the process exits)
     cfg = load_json(CONFIG, None)
     if cfg is None:
         sys.exit("No config.json. Copy config.example.json to config.json and fill it in.")
@@ -258,6 +276,7 @@ def cmd_once(args):
 
 
 def cmd_post(args):
+    _lock_handle = _lock()  # noqa: F841
     cfg = load_json(CONFIG, None) or sys.exit("No config.json")
     post_queue(load_json(STATE, {"seen": {}, "queue": [], "posted": []}), cfg, dry_run=args.dry_run)
 
