@@ -6,13 +6,17 @@
       "url": "https://www.twitch.tv/example_streamer/videos?filter=archives",
       "permission": "Whop campaign: <link to the campaign you joined>",
       "credit": "@example_streamer",
-      "notes": "Campaign rules: GTA VI only, credit in caption, no swearing in hooks."
+      "notes": "Campaign rules: GTA VI only, credit in caption, 15-60s. Copy the campaign's own rules here.",
+      "min_len": 15,
+      "max_len": 60,
+      "required_hashtags": "#gta6"
     },
     {
       "name": "me",
       "url": "https://www.youtube.com/@yourchannel/streams",
       "permission": "my own channel",
-      "credit": ""
+      "credit": "",
+      "notes": "Own channel: clips over 60s so they count for TikTok Creator Rewards."
     }
   ],
   "clipping": {
@@ -30,5 +34,8 @@
     "mode": "draft",
     "privacy": "PUBLIC_TO_EVERYONE",
     "max_posts_per_day": 4
+  },
+  "verification": {
+    "checker": true
   }
 }

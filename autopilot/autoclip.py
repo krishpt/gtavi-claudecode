@@ -22,6 +22,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import clipper  # noqa: E402
+import verify   # noqa: E402
 import tiktok   # noqa: E402
 
 CONFIG = HERE / "config.json"
@@ -104,7 +105,7 @@ def rank_with_claude_code(cands_path: Path, n: int, min_len: float, max_len: flo
 # ----------------------------------------------------------------------------- clip one VOD
 
 def clip_vod(src: Path, out_dir: Path, source: dict, cfg: dict) -> list[dict]:
-    c = cfg["clipping"]
+    c = {**cfg["clipping"], **{k: source[k] for k in ("min_len", "max_len", "clips_per_vod") if k in source}}
     base = [sys.executable, str(HERE / "clipper.py"), "run", str(src), "--out", str(out_dir),
             "--clips", str(c["clips_per_vod"]), "--min-len", str(c["min_len"]), "--max-len", str(c["max_len"]),
             "--layout", c["layout"], "--whisper-model", c["whisper_model"]]
@@ -129,6 +130,35 @@ def clip_vod(src: Path, out_dir: Path, source: dict, cfg: dict) -> list[dict]:
     # ranker == "api" -> clipper calls the Claude API itself (needs ANTHROPIC_API_KEY)
     subprocess.run(base + extra_args, check=True)
     return json.loads((out_dir / "metadata.json").read_text())
+
+
+def gate(m: dict, out_dir: Path, source: dict, cfg: dict) -> tuple[bool, str, list]:
+    """Verification loop: check -> fix text items -> re-check, max 3 rounds. Returns (passed, post_text, report)."""
+    c = {**cfg["clipping"], **{k: source[k] for k in ("min_len", "max_len") if k in source}}
+    clip = out_dir / m["file"]
+    work = out_dir / ".work"
+    ass = work / (Path(m["file"]).stem + ".ass")
+    words = []
+    for t in work.glob("*.transcript.json"):
+        words = json.loads(t.read_text())
+    spoken = sum(1 for w in words if m["start"] <= w["start"] < m["end"])
+    mention = source.get("credit", "")
+    tags = source.get("required_hashtags", "")
+    caption = m["post_text"]
+    report = []
+    for rnd in range(1, 4):
+        report = verify.verify(clip, caption, min_len=c["min_len"], max_len=c["max_len"], mention=mention,
+                               tags=tags, permission=source.get("permission", ""), ass=ass,
+                               speech_words=spoken, checker=cfg.get("verification", {}).get("checker", True))
+        failed = [n for n, ok, _ in report if not ok]
+        log(f"    verify round {rnd} {m['file']}: {'PASS' if not failed else 'FAIL ' + ', '.join(failed)}")
+        if not failed:
+            return True, caption, report
+        if all(n.startswith("6") for n in failed):  # only text items failed: these can be fixed mechanically
+            caption = verify.fix_caption(caption, mention=mention, tags=tags)
+            continue
+        break  # video, permission or checker failures can't be fixed by editing text
+    return False, caption, report
 
 # ----------------------------------------------------------------------------- posting
 
@@ -194,12 +224,22 @@ def cmd_once(args):
             except subprocess.CalledProcessError as e:
                 log(f"  clipping failed: {e}")
                 continue
+            passed = 0
             for m in clips:
-                state["queue"].append({"file": str(out_dir / m["file"]), "post_text": m["post_text"],
-                                       "source": name, "vod": vod["id"], "permission": source["permission"]})
-            state["seen"][key] = {"at": dt.datetime.now().isoformat(timespec="seconds"), "clips": len(clips)}
+                ok, text, report = gate(m, out_dir, source, cfg)
+                entry = {"file": str(out_dir / m["file"]), "post_text": text, "source": name, "vod": vod["id"],
+                         "permission": source["permission"],
+                         "checks": [f"{'PASS' if o else 'FAIL'} {n} {d}".strip() for n, o, d in report]}
+                if ok:
+                    state["queue"].append(entry)
+                    passed += 1
+                else:
+                    entry["at"] = dt.datetime.now().isoformat(timespec="seconds")
+                    state.setdefault("rejected", []).append(entry)
+            state["seen"][key] = {"at": dt.datetime.now().isoformat(timespec="seconds"), "clips": len(clips),
+                                  "passed": passed}
             save_state(state)
-            log(f"  queued {len(clips)} clips")
+            log(f"  {passed}/{len(clips)} clips passed verification and were queued")
             if cfg["clipping"].get("delete_vod_after", True):
                 src.unlink(missing_ok=True)
 
@@ -210,6 +250,34 @@ def cmd_once(args):
 def cmd_post(args):
     cfg = load_json(CONFIG, None) or sys.exit("No config.json")
     post_queue(load_json(STATE, {"seen": {}, "queue": [], "posted": []}), cfg, dry_run=args.dry_run)
+
+
+def cmd_report(args):
+    """Summary for routine check-ins: last N days of VODs, verification, posts, errors."""
+    s = load_json(STATE, {"seen": {}, "queue": [], "posted": []})
+    since = (dt.datetime.now() - dt.timedelta(days=args.days)).isoformat()
+    seen = [v for v in s["seen"].values() if v.get("at", "") >= since]
+    posted = [p for p in s["posted"] if p["at"] >= since]
+    rejected = [r for r in s.get("rejected", []) if r.get("at", "") >= since]
+    errors = []
+    logf = HERE / "autoclip.log"
+    if logf.exists():
+        for line in logf.read_text(encoding="utf-8").splitlines()[-2000:]:
+            if line[1:20] >= since[:19].replace("T", " ") and any(w in line for w in ("failed", "error", "Error")):
+                errors.append(line)
+    print(f"# Autopilot report, last {args.days} day(s)")
+    print(f"VODs processed: {len(seen)} | clips made: {sum(v.get('clips', 0) for v in seen)} | "
+          f"passed verification: {sum(v.get('passed', 0) for v in seen)} | rejected: {len(rejected)} | "
+          f"posted: {len(posted)} | still queued: {len(s['queue'])}")
+    by_src = {}
+    for p in posted:
+        by_src[p["source"]] = by_src.get(p["source"], 0) + 1
+    for k, v in by_src.items():
+        print(f"  posted from {k}: {v}")
+    for r in rejected[-5:]:
+        print(f"  rejected {Path(r['file']).name}: " + "; ".join(c for c in r["checks"] if c.startswith("FAIL")))
+    for e in errors[-10:]:
+        print("  " + e)
 
 
 def cmd_status(_):
@@ -223,9 +291,10 @@ def cmd_status(_):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name, fn in [("once", cmd_once), ("post", cmd_post), ("status", cmd_status)]:
+    for name, fn in [("once", cmd_once), ("post", cmd_post), ("status", cmd_status), ("report", cmd_report)]:
         p = sub.add_parser(name)
         p.add_argument("--dry-run", action="store_true")
+        p.add_argument("--days", type=int, default=1)
         p.set_defaults(func=fn)
     a = ap.parse_args()
     a.func(a)

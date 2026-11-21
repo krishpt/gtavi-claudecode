@@ -22,9 +22,20 @@ Scripts live in `${CLAUDE_PLUGIN_ROOT}/autopilot/` (`autoclip.py`, `clipper.py`,
 
 To find new campaign creators, use `campaign-finder`. To find trending streams worth asking permission for, use `stream-finder` and `trend-radar`.
 
+## Verification (every clip, before it can post)
+
+`autoclip.py` runs `verify.py` on each clip: resolution/fps, loudness, length within the source's rules, not
+black/frozen, captions present when there is speech, post-text rules (hashtags, credit, banned terms), permission,
+then an independent `claude -p` checker that sees only a frame grid and the post text. Text failures are fixed
+automatically and re-checked (max 3 rounds). Any other failure rejects the clip. Rejected clips are kept in
+`state.json` under `rejected` with the failing items, and are never posted.
+
+Per-source overrides in `config.json`: `min_len`, `max_len`, `required_hashtags`, `credit` (used as the required
+mention), `notes` (fed to the ranker). Copy each campaign's own rules into these.
+
 ## Day to day
 
-- "What got posted?" → `python autoclip.py status` and the tail of `autoclip.log`.
+- "What got posted?" / routine check-in → `python autoclip.py report --days 1` (VODs, verified, rejected with reasons, posted, errors).
 - Campaign rules change → update that source's `notes`. The ranker reads them.
 - Keep `max_posts_per_day` at 2-6. More than that reads as spam to TikTok and drops reach.
 
