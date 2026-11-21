@@ -157,7 +157,14 @@ def post_video(path: Path, caption: str, mode: str = "draft", privacy: str = "PU
                               "disable_duet": False, "disable_comment": False, "disable_stitch": False,
                               "video_cover_timestamp_ms": 1000},
                 "source_info": info}
-        init = _post(f"{API}/post/publish/video/init/", data=body, token=token)["data"]
+        try:
+            init = _post(f"{API}/post/publish/video/init/", data=body, token=token)["data"]
+        except RuntimeError as e:
+            if "unaudited_client" not in str(e):
+                raise
+            # app not audited yet: deliver to the inbox instead, so clips keep flowing
+            mode = "draft"
+            init = _post(f"{API}/post/publish/inbox/video/init/", data={"source_info": info}, token=token)["data"]
     else:
         init = _post(f"{API}/post/publish/inbox/video/init/", data={"source_info": info}, token=token)["data"]
     _upload(init["upload_url"], path, info)
