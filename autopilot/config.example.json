@@ -34,7 +34,8 @@
     "max_hours": 4
   },
   "posting": {
-    "mode": "draft",
+    "mode": "browser",
+    "account": "your_clipping_account",
     "privacy": "PUBLIC_TO_EVERYONE",
     "max_posts_per_day": 4
   },

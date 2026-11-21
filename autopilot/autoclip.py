@@ -141,7 +141,14 @@ def clip_vod(src: Path, out_dir: Path, source: dict, cfg: dict) -> list[dict]:
         subprocess.run(base + ["--candidates-only"], check=True)
         picks = rank_with_claude_code(out_dir / ".work" / "candidates.json", c["clips_per_vod"],
                                       c["min_len"], c["max_len"], source.get("notes", ""))
-        if picks and picks.get("clips"):  # an empty list from Claude falls back to the heuristic
+        n_picks = len((picks or {}).get("clips") or [])
+        valid = n_picks and all(0 <= p.get("candidate_id", -1) < len(json.loads(
+            (out_dir / ".work" / "candidates.json").read_text())) for p in picks["clips"])
+        if picks is not None and not valid:
+            log(f"  Claude returned {n_picks} usable picks; falling back to heuristic ranking")
+            picks = None
+        if picks:
+            log(f"  Claude picked {n_picks} clips")
             pf = out_dir / ".work" / "picks.json"
             pf.write_text(json.dumps(picks))
             extra_args = ["--picks", str(pf)]
@@ -151,8 +158,15 @@ def clip_vod(src: Path, out_dir: Path, source: dict, cfg: dict) -> list[dict]:
     elif ranker == "heuristic":
         extra_args = ["--no-claude"]
     # ranker == "api" -> clipper calls the Claude API itself (needs ANTHROPIC_API_KEY)
+    meta = out_dir / "metadata.json"
+    meta.unlink(missing_ok=True)  # never read a stale manifest from an earlier run
     subprocess.run(base + extra_args, check=True)
-    return json.loads((out_dir / "metadata.json").read_text())
+    clips = json.loads(meta.read_text()) if meta.exists() else []
+    if not clips and "--no-claude" not in extra_args:
+        log("  no clips from the ranked picks; retrying with heuristic ranking")
+        subprocess.run(base + ["--no-claude"], check=True)
+        clips = json.loads(meta.read_text()) if meta.exists() else []
+    return clips
 
 
 def gate(m: dict, out_dir: Path, source: dict, cfg: dict) -> tuple[bool, str, list]:
@@ -205,8 +219,13 @@ def post_queue(state, cfg, dry_run=False):
             log(f"[dry-run] would post {item['file']}: {item['post_text']}")
             continue
         try:
-            res = tiktok.post_video(Path(item["file"]), item["post_text"], mode=pc["mode"],
-                                    privacy=pc.get("privacy", "PUBLIC_TO_EVERYONE"))
+            if pc["mode"] == "browser":
+                import tiktok_browser
+                res = tiktok_browser.post_video(Path(item["file"]), item["post_text"],
+                                                expected=pc.get("account", ""))
+            else:
+                res = tiktok.post_video(Path(item["file"]), item["post_text"], mode=pc["mode"],
+                                        privacy=pc.get("privacy", "PUBLIC_TO_EVERYONE"))
         except Exception as e:  # keep it queued and try next run
             log(f"post failed for {item['file']}: {e}")
             break
@@ -217,7 +236,20 @@ def post_queue(state, cfg, dry_run=False):
 
 # ----------------------------------------------------------------------------- main loop
 
+def _lock():
+    """One run at a time (a manual run and the scheduled job must not process the same VOD twice)."""
+    import fcntl
+    f = open(HERE / ".autoclip.lock", "w")
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        log("another run is in progress; exiting")
+        sys.exit(0)
+    return f
+
+
 def cmd_once(args):
+    _lock_handle = _lock()  # noqa: F841 (held until the process exits)
     cfg = load_json(CONFIG, None)
     if cfg is None:
         sys.exit("No config.json. Copy config.example.json to config.json and fill it in.")
@@ -279,6 +311,7 @@ def cmd_once(args):
 
 
 def cmd_post(args):
+    _lock_handle = _lock()  # noqa: F841
     cfg = load_json(CONFIG, None) or sys.exit("No config.json")
     post_queue(load_json(STATE, {"seen": {}, "queue": [], "posted": []}), cfg, dry_run=args.dry_run)
 
