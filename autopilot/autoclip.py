@@ -151,7 +151,8 @@ def gate(m: dict, out_dir: Path, source: dict, cfg: dict) -> tuple[bool, str, li
     for rnd in range(1, 4):
         report = verify.verify(clip, caption, min_len=c["min_len"], max_len=c["max_len"], mention=mention,
                                tags=tags, permission=source.get("permission", ""), ass=ass,
-                               speech_words=spoken, checker=cfg.get("verification", {}).get("checker", True))
+                               speech_words=spoken, checker=cfg.get("verification", {}).get("checker", True),
+                               rules=source.get("notes", ""))
         failed = [n for n, ok, _ in report if not ok]
         log(f"    verify round {rnd} {m['file']}: {'PASS' if not failed else 'FAIL ' + ', '.join(failed)}")
         if not failed:
