@@ -14,8 +14,10 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -61,13 +63,27 @@ def latest_vods(url: str, n: int) -> list[dict]:
              "duration": e.get("duration")} for e in entries if e.get("id")]
 
 
+DOWNLOAD_TIMEOUT = 7200
+
+
 def download(vod: dict, dest: Path, max_height: int, max_hours: float = 0) -> Path | None:
     dest.mkdir(parents=True, exist_ok=True)
     section = ["--download-sections", f"*0-{int(max_hours * 3600)}"] if max_hours else []
-    r = subprocess.run(["yt-dlp", "-f", f"bv*[height<={max_height}]+ba/b[height<={max_height}]", *section,
-                        "--merge-output-format", "mp4", "--no-progress",
-                        "-o", str(dest / "%(id)s.%(ext)s"), "--print", "after_move:filepath", vod["url"]],
-                       capture_output=True, text=True)
+    p = subprocess.Popen(["yt-dlp", "-f", f"bv*[height<={max_height}]+ba/b[height<={max_height}]", *section,
+                          "--merge-output-format", "mp4", "--no-progress",
+                          "-o", str(dest / "%(id)s.%(ext)s"), "--print", "after_move:filepath", vod["url"]],
+                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+    try:
+        # shortcut: fixed 2 h cap (a stalled HLS fetch otherwise hangs the whole schedule); raise if VODs are huge
+        out, err = p.communicate(timeout=DOWNLOAD_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        os.killpg(p.pid, signal.SIGKILL)  # yt-dlp's ffmpeg child is in the same group
+        p.communicate()
+        for f in dest.glob(f"{vod['id']}.*.part*"):
+            f.unlink(missing_ok=True)
+        log(f"  download timed out after 2 h: {vod['id']}")
+        return None
+    r = subprocess.CompletedProcess(p.args, p.returncode, out, err)
     if r.returncode != 0:
         log(f"  download failed: {r.stderr.strip()[-300:]}")
         return None
