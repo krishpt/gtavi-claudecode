@@ -108,7 +108,7 @@ def independent_check(grid: Path, caption: str, rules: str = "") -> tuple[bool, 
              "--add-dir", str(grid.parent), "--json-schema", json.dumps(CHECKER_SCHEMA)],
             input=prompt, timeout=600)
     if r.returncode != 0:
-        return False, f"checker error: {r.stderr.strip()[-200:]}"
+        return False, f"checker error: {(r.stderr.strip() or r.stdout.strip())[-300:]}"
     try:
         out = json.loads(r.stdout)
         res = out.get("structured_output") if isinstance(out.get("structured_output"), dict) else None

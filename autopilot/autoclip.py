@@ -92,7 +92,7 @@ def rank_with_claude_code(cands_path: Path, n: int, min_len: float, max_len: flo
                         "--json-schema", json.dumps(clipper.RANK_SCHEMA)],
                        input=prompt, capture_output=True, text=True, timeout=900)
     if r.returncode != 0:
-        log(f"  claude -p failed: {r.stderr.strip()[-300:]}")
+        log(f"  claude -p failed: {(r.stderr.strip() or r.stdout.strip())[-300:]}")
         return None
     try:
         out = json.loads(r.stdout)
