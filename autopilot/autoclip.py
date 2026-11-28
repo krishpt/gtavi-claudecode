@@ -278,6 +278,18 @@ def _lock():
     return f
 
 
+def claude_logged_in() -> bool:
+    """`claude auth status` is local and free, unlike a `claude -p` probe."""
+    claude = shutil.which("claude")
+    if not claude:
+        return False
+    try:
+        r = subprocess.run([claude, "auth", "status"], capture_output=True, text=True, timeout=30)
+        return bool(json.loads(r.stdout).get("loggedIn"))
+    except (subprocess.TimeoutExpired, ValueError):
+        return True  # can't tell: don't block clipping on an unexpected status format
+
+
 def cmd_once(args):
     _lock_handle = _lock()  # noqa: F841 (held until the process exits)
     cfg = load_json(CONFIG, None)
@@ -287,6 +299,11 @@ def cmd_once(args):
     data = Path(cfg.get("data_dir") or HERE / "data").expanduser()
     # post what's already verified first, so a long VOD below never delays the queue
     post_queue(state, cfg, dry_run=args.dry_run)
+    if cfg.get("verification", {}).get("checker", True) and not claude_logged_in():
+        # the checker would reject every clip and the VOD would be marked seen and lost; wait for a login instead
+        log("Claude Code is logged out (run `claude` then /login); skipping clipping this pass")
+        save_state(state)
+        return
 
     for source in cfg["sources"]:
         name = source["name"]
